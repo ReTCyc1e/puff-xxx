@@ -1,0 +1,42 @@
+version: "3.8"
+
+services:
+  # ========== 入口服务：面向攻击者 ==========
+  web-shiro:
+    image: hua/web-shiro:latest
+    restart: always
+    # 仅允许本机访问 8080 端口（避免意外暴露到公网）
+    ports:
+      - "8080:8080"
+    # 加入两个网络：
+    # - entry: 作为外部访问入口（虽然其他服务不在这里，但保留语义）
+    # - internal-net: 用于与内部服务通信
+    networks:
+      - entry
+      - internal-net
+
+  # ========== 内部服务：不可直接访问 ==========
+  web-thinkphp:
+    image: hua/web-thinkphp:latest
+    restart: always
+    # 注意：没有 ports 配置 → 外部无法直接访问
+    # 只能通过内部网络（如从 web-shiro）访问
+    networks:
+      - internal-net
+
+# ========== 自定义网络定义 ==========
+networks:
+  # 外部入口网络（语义用，实际只有 web-shiro 在此）
+  entry:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.32.0/24
+
+  # 内部隔离网络：shiro 和 thinkphp 可互相通信
+  internal-net:
+    driver: bridge
+    internal: true  # 关键！禁止容器访问外网，也禁止外部访问此网络
+    ipam:
+      config:
+        - subnet: 10.85.101.0/24
